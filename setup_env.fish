@@ -1,10 +1,7 @@
 #!/usr/bin/fish
 echo 'Setting up development environment...'
-# Simulated package checks
 if not type -q git
-    echo 'Git is not installed. In a real setup, this would install it.'
+    echo 'Error: Git is not installed. Please install it and try again.'
+    exit 1
 end
-if not type -q fish
-    echo 'Fish shell is not installed. In a real setup, this would install it.'
-end
-echo 'Environment setup complete (simulated).'
+echo 'Environment setup complete.'
