@@ -33,7 +33,7 @@ if test (count \$argv) -lt 1
 end
 set target_dir \$argv[1]
 cd \$target_dir
-echo 'Setting up development environment in \$target_dir...'
+echo \"Setting up development environment in \$target_dir...\"
 echo 'Environment setup complete.'" > "$project_dir/setup_env.fish"
 chmod +x "$project_dir/setup_env.fish"
 
@@ -45,7 +45,7 @@ if test (count \$argv) -lt 1
 end
 set target_dir \$argv[1]
 cd \$target_dir
-echo 'Updating source code in \$target_dir...'
+echo \"Updating source code in \$target_dir...\"
 # Placeholder for future updates
 echo 'Source code updated.'" > "$project_dir/update_source.fish"
 chmod +x "$project_dir/update_source.fish"
@@ -96,7 +96,7 @@ if not git config --global user.email
     git config --global user.name "NFDFLDTHRY"
 end
 
-# Stage and commit all changes
+# Stage and commit all changes (including github_sync.fish)
 echo "Staging and committing changes..."
 cd $project_dir
 git add .
