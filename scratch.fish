@@ -1,25 +1,20 @@
 #!/usr/bin/fish
 
-# scratch.fish: Sets up a project and syncs it with GitHub, ensuring all tools are committed
+# scratch.fish: Sets up a project workspace, creates/clones projects, and syncs with GitHub
 
-set project_dir (pwd)
-
-# Check for optional repo URL and target directory
-if test (count $argv) -eq 2
-    set repo_url $argv[1]
-    set target_dir $argv[2]
-    ./clone_repo.fish $repo_url $target_dir
-    if test $status -ne 0
-        echo "Error: Cloning failed."
-        exit 1
-    end
-    set project_dir $target_dir
-end
+set project_dir (pwd)  # Should be /home/cd/projs/SB
+set projs_dir "$project_dir/projs"
 
 # Check if we're in a Git repository
 if not test -d "$project_dir/.git"
-    echo "Error: No Git repository found in $project_dir. Run with repo URL to clone one."
+    echo "Error: No Git repository found in $project_dir. Initialize one first."
     exit 1
+end
+
+# Create projs directory if it doesn't exist
+if not test -d "$projs_dir"
+    echo "Creating projs directory at $projs_dir..."
+    mkdir -p "$projs_dir"
 end
 
 # Apply tools to the project_dir
@@ -75,23 +70,90 @@ echo "end" >> "$project_dir/github_sync.fish"
 echo "echo 'GitHub sync complete.'" >> "$project_dir/github_sync.fish"
 chmod +x "$project_dir/github_sync.fish"
 
+# Create or update create_project.fish
+echo "#!/usr/bin/fish" > "$project_dir/create_project.fish"
+echo "if test (count \$argv) -lt 1" >> "$project_dir/create_project.fish"
+echo "    echo 'Usage: ./create_project.fish <project_name>'" >> "$project_dir/create_project.fish"
+echo "    exit 1" >> "$project_dir/create_project.fish"
+echo "end" >> "$project_dir/create_project.fish"
+echo "set project_name \$argv[1]" >> "$project_dir/create_project.fish"
+echo "set projs_dir \"$project_dir/projs\"" >> "$project_dir/create_project.fish"
+echo "set target_dir \"\$projs_dir/\$project_name\"" >> "$project_dir/create_project.fish"
+echo "if test -d \"\$target_dir\"" >> "$project_dir/create_project.fish"
+echo "    echo \"Error: Project \$project_name already exists at \$target_dir.\"" >> "$project_dir/create_project.fish"
+echo "    exit 1" >> "$project_dir/create_project.fish"
+echo "end" >> "$project_dir/create_project.fish"
+echo "echo \"Creating new project \$project_name at \$target_dir...\"" >> "$project_dir/create_project.fish"
+echo "mkdir -p \"\$target_dir\"" >> "$project_dir/create_project.fish"
+echo "echo \"# Project \$project_name\" > \"\$target_dir/README.md\"" >> "$project_dir/create_project.fish"
+echo "cd \$projs_dir" >> "$project_dir/create_project.fish"
+echo "git add \"\$project_name\"" >> "$project_dir/create_project.fish"
+echo "echo \"Project \$project_name created and staged for commit.\"" >> "$project_dir/create_project.fish"
+chmod +x "$project_dir/create_project.fish"
+
+# Create or update clone_project.fish
+echo "#!/usr/bin/fish" > "$project_dir/clone_project.fish"
+echo "if test (count \$argv) -lt 2" >> "$project_dir/clone_project.fish"
+echo "    echo 'Usage: ./clone_project.fish <repo_url> <project_name>'" >> "$project_dir/clone_project.fish"
+echo "    exit 1" >> "$project_dir/clone_project.fish"
+echo "end" >> "$project_dir/clone_project.fish"
+echo "set repo_url \$argv[1]" >> "$project_dir/clone_project.fish"
+echo "set project_name \$argv[2]" >> "$project_dir/clone_project.fish"
+echo "set projs_dir \"$project_dir/projs\"" >> "$project_dir/clone_project.fish"
+echo "set target_dir \"\$projs_dir/\$project_name\"" >> "$project_dir/clone_project.fish"
+echo "if test -d \"\$target_dir\"" >> "$project_dir/clone_project.fish"
+echo "    echo \"Error: Project \$project_name already exists at \$target_dir.\"" >> "$project_dir/clone_project.fish"
+echo "    exit 1" >> "$project_dir/clone_project.fish"
+echo "end" >> "$project_dir/clone_project.fish"
+echo "echo \"Cloning repository into \$target_dir...\"" >> "$project_dir/clone_project.fish"
+echo "git clone \$repo_url \"\$target_dir\"" >> "$project_dir/clone_project.fish"
+echo "if test \$status -ne 0" >> "$project_dir/clone_project.fish"
+echo "    echo 'Error: Failed to clone repository.'" >> "$project_dir/clone_project.fish"
+echo "    exit 1" >> "$project_dir/clone_project.fish"
+echo "end" >> "$project_dir/clone_project.fish"
+echo "# Remove the .git directory to avoid nested repositories" >> "$project_dir/clone_project.fish"
+echo "rm -rf \"\$target_dir/.git\"" >> "$project_dir/clone_project.fish"
+echo "cd \$projs_dir" >> "$project_dir/clone_project.fish"
+echo "git add \"\$project_name\"" >> "$project_dir/clone_project.fish"
+echo "echo \"Project \$project_name cloned and staged for commit.\"" >> "$project_dir/clone_project.fish"
+chmod +x "$project_dir/clone_project.fish"
+
 # Verify tools exist
-for tool in setup_env.fish update_source.fish github_sync.fish
+for tool in setup_env.fish update_source.fish github_sync.fish create_project.fish clone_project.fish
     if not test -f "$project_dir/$tool"
         echo "Error: $tool was not created successfully."
         exit 1
     end
 end
 
-# Remove .gitignore to ensure github_sync.fish is not ignored
-if test -f "$project_dir/.gitignore"
-    echo "Removing .gitignore to include github_sync.fish..."
-    git rm "$project_dir/.gitignore"
-    git commit -m "Remove .gitignore to include github_sync.fish"
+# Handle arguments for creating or cloning a project
+if test (count $argv) -gt 0
+    set command $argv[1]
+    switch $command
+        case "create"
+            if test (count $argv) -lt 2
+                echo "Usage: ./scratch.fish create <project_name>"
+                exit 1
+            end
+            set project_name $argv[2]
+            "$project_dir/create_project.fish" "$project_name"
+        case "clone"
+            if test (count $argv) -lt 3
+                echo "Usage: ./scratch.fish clone <repo_url> <project_name>"
+                exit 1
+            end
+            set repo_url $argv[2]
+            set project_name $argv[3]
+            "$project_dir/clone_project.fish" "$repo_url" "$project_name"
+        case '*'
+            echo "Unknown command: $command"
+            echo "Usage: ./scratch.fish [create <project_name> | clone <repo_url> <project_name>]"
+            exit 1
+    end
 end
 
-# Run setup scripts
-echo "Running setup scripts..."
+# Run setup scripts on the main project directory
+echo "Running setup scripts on $project_dir..."
 "$project_dir/setup_env.fish" "$project_dir"
 if test $status -ne 0
     echo "Error: setup_env.fish failed."
@@ -114,9 +176,9 @@ end
 # Stage and commit all changes explicitly
 echo "Staging and committing changes..."
 cd $project_dir
-git add scratch.fish setup_env.fish update_source.fish github_sync.fish
+git add scratch.fish setup_env.fish update_source.fish github_sync.fish create_project.fish clone_project.fish projs
 if git status | grep -q "Changes to be committed"
-    git commit -m "Update project files with all tools"
+    git commit -m "Update project files with new tools and projects"
 else
     echo "No changes to commit."
 end
