@@ -1,107 +1,116 @@
 #!/usr/bin/fish
 
-# scratch.fish: Sets up a project and syncs it with GitHub
-
-echo "Setting up project tools"
+# scratch.fish: Sets up a project and syncs it with GitHub, ensuring changes are committed
 
 set project_dir (pwd)
 
-# Check if we're in the project root
-if not test -f "$project_dir/scratch.fish"
-    echo "Error: Please run this script from the project root directory."
-    exit 1
+# Check for optional repo URL and target directory
+if test (count $argv) -eq 2
+    set repo_url $argv[1]
+    set target_dir $argv[2]
+    ./clone_repo.fish $repo_url $target_dir
+    if test $status -ne 0
+        echo "Error: Cloning failed."
+        exit 1
+    end
+    set project_dir $target_dir
 end
 
-# Initialize Git repository if it doesn’t exist
+# Check if we're in a Git repository
 if not test -d "$project_dir/.git"
-    echo "Initializing Git repository in $project_dir..."
-    git init
-end
-
-# Create or update tools
-echo "Creating or updating tools..."
-
-# setup_env.fish: Environment setup
-echo "#!/usr/bin/fish
-echo 'Setting up development environment...'
-if not type -q git
-    echo 'Error: Git is not installed. Please install it and try again.'
+    echo "Error: No Git repository found in $project_dir. Run with repo URL to clone one."
     exit 1
 end
+
+# Apply tools to the project_dir
+echo "Setting up tools for $project_dir..."
+
+# Create or update setup_env.fish
+echo "#!/usr/bin/fish
+if test (count \$argv) -lt 1
+    echo 'Usage: ./setup_env.fish <target_dir>'
+    exit 1
+end
+set target_dir \$argv[1]
+cd \$target_dir
+echo 'Setting up development environment in \$target_dir...'
 echo 'Environment setup complete.'" > "$project_dir/setup_env.fish"
 chmod +x "$project_dir/setup_env.fish"
 
-# update_source.fish: Source code updates (placeholder)
+# Create or update update_source.fish
 echo "#!/usr/bin/fish
-echo 'Updating source code...'
-# Add update logic here" > "$project_dir/update_source.fish"
+if test (count \$argv) -lt 1
+    echo 'Usage: ./update_source.fish <target_dir>'
+    exit 1
+end
+set target_dir \$argv[1]
+cd \$target_dir
+echo 'Updating source code in \$target_dir...'
+# Placeholder for future updates
+echo 'Source code updated.'" > "$project_dir/update_source.fish"
 chmod +x "$project_dir/update_source.fish"
 
-# github_sync.fish: GitHub synchronization
+# Create or update github_sync.fish
 echo "#!/usr/bin/fish
-echo 'Syncing with GitHub...'
-if set -q GITHUB_USER && set -q GITHUB_PAT
-    set github_user \$GITHUB_USER
-    set github_pat \$GITHUB_PAT
-else
-    echo 'Enter your GitHub username:'
-    read -P 'Username: ' github_user
-    echo 'Enter your GitHub PAT:'
-    read -s -P 'PAT: ' github_pat
+if test (count \$argv) -lt 1
+    echo 'Usage: ./github_sync.fish <target_dir>'
+    exit 1
 end
-set repo_url \"https://\$github_user:\$github_pat@github.com/\$github_user/sandbox.git\"
+set target_dir \$argv[1]
+cd \$target_dir
+echo 'Syncing with GitHub...'
+echo 'Enter your GitHub username:'
+read -P 'Username: ' github_user
+echo 'Enter your GitHub PAT:'
+read -s -P 'PAT: ' github_pat
+set github_user (string trim \$github_user)
+set github_pat (string trim \$github_pat)
+set repo_url \"https://\$github_user:\$github_pat@github.com/NFDFLDTHRY/sandbox.git\"
 git remote set-url origin \$repo_url 2>/dev/null; or git remote add origin \$repo_url
 git push -u origin master
 if test \$status -ne 0
-    echo 'Error: Push failed. Check your credentials or network connection.'
+    echo 'Error: Failed to push to GitHub. Check credentials or network.'
     exit 1
 end
 echo 'GitHub sync complete.'" > "$project_dir/github_sync.fish"
 chmod +x "$project_dir/github_sync.fish"
 
-# Manage .gitignore
-if not test -f "$project_dir/.gitignore"
-    echo "github_sync.fish" > "$project_dir/.gitignore"
-else if not grep -q "github_sync.fish" "$project_dir/.gitignore"
-    echo "github_sync.fish" >> "$project_dir/.gitignore"
-end
-
-# Create or update README.md
-if not test -f "$project_dir/README.md"
-    echo "# Sandbox Project
-A workflow for managing development tools.
-## Setup
-Run `./scratch.fish` to initialize the project and sync with GitHub." > "$project_dir/README.md"
-end
-
 # Run setup scripts
 echo "Running setup scripts..."
-"$project_dir/setup_env.fish" || begin
-    echo "Error: Environment setup failed."
+"$project_dir/setup_env.fish" "$project_dir"
+if test $status -ne 0
+    echo "Error: setup_env.fish failed."
     exit 1
 end
 
-"$project_dir/update_source.fish" || begin
-    echo "Error: Source update failed."
+"$project_dir/update_source.fish" "$project_dir"
+if test $status -ne 0
+    echo "Error: update_source.fish failed."
     exit 1
 end
 
 # Set Git identity if not configured
 if not git config --global user.email
     echo "Setting Git user identity..."
-    git config --global user.email "your-email@example.com"
-    git config --global user.name "YourName"
+    git config --global user.email "nfdfldthry@example.com"
+    git config --global user.name "NFDFLDTHRY"
 end
 
-# Commit files
-echo "Adding and committing project files..."
-git add README.md scratch.fish setup_env.fish update_source.fish .gitignore
-git commit -m "Initialize project tools" || echo "Warning: Nothing to commit."
+# Stage and commit all changes
+echo "Staging and committing changes..."
+cd $project_dir
+git add .
+if git status | grep -q "Changes to be committed"
+    git commit -m "Update project files"
+else
+    echo "No changes to commit."
+end
 
 # Sync with GitHub
-"$project_dir/github_sync.fish" || begin
-    echo "Error: GitHub sync failed."
+"$project_dir/github_sync.fish" "$project_dir"
+if test $status -ne 0
+    echo "Error: github_sync.fish failed."
     exit 1
 end
 
-echo "Setup complete! Your project is ready and synced."
+echo "Setup complete for $project_dir."
